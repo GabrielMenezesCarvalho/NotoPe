@@ -1,12 +1,9 @@
 import { ChangeEvent, DragEvent, Fragment, KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, CircleAlert, CircleCheck, CircleX, Clock3, Download, ExternalLink, FilePenLine, FileSearch, FileUp, Info, LayoutDashboard, ListChecks, LoaderCircle, Menu, Moon, MoreVertical, Pause, Play, RotateCcw, Settings, Sun, Trash2, Upload as UploadIcon } from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
-import type { PDFDocumentLoadingTask, PDFDocumentProxy, RenderTask } from 'pdfjs-dist';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
-import type { CropManifest, Extraction, PageData, Route } from './types';
 
 const PDF_URL = '/documents/Form_Novo_300_pags.pdf';
-const FIELD_LABELS: Record<string, string> = {
+const FIELD_LABELS = {
   dia: 'Dia', mes: 'Mês', ano: 'Ano', total_recebido: 'Total recebido',
   total_devolvido: 'Total devolvido', justificativa: 'Justificativa',
 };
@@ -15,15 +12,15 @@ const MIN_FONT_SCALE = .85;
 const MAX_FONT_SCALE = 4;
 const FONT_SCALE_STEP = .1;
 
-type UploadRow = { id: number; name: string; pages: string; progress: number; status: 'processing' | 'queued' | 'done' };
-type DetailRow = [id: string, name: string, pages: string, date: string, inconsistencies: string, status: string, progress: string];
-type UserRow = { id: number; name: string; email: string; cpf: string; role: string; active: boolean };
+const UploadRow = { id: 0, name: '', pages: '', progress: 0, status: 'queued' };
+const DetailRow = [];
+const UserRow = { id: 0, name: '', email: '', cpf: '', role: '', active: true };
 
-function Brand({ large = false }: { large?: boolean }) {
+function Brand({ large = false }) {
   return <span className={`brand ${large ? 'brand--large' : ''}`}><span>Noto</span><b>PE</b></span>;
 }
 
-function Login({ onLogin }: { onLogin: () => void }) {
+function Login({ onLogin }) {
   return <div className="prototype-window login-window">
     <header className="login-header"><Brand /></header>
     <main className="login-main">
@@ -49,8 +46,8 @@ function Login({ onLogin }: { onLogin: () => void }) {
   </div>;
 }
 
-function SideIcon({ kind }: { kind: string }) {
-  const icons: Record<string, LucideIcon> = {
+function SideIcon({ kind }) {
+  const icons = {
     dashboard: LayoutDashboard,
     upload: FileUp,
     detail: FileSearch,
@@ -60,15 +57,13 @@ function SideIcon({ kind }: { kind: string }) {
   return <span className={`side-icon side-icon--${kind}`} aria-hidden="true"><Icon strokeWidth={1.8} /></span>;
 }
 
-function NavChevron({ expanded = false }: { expanded?: boolean }) {
+function NavChevron({ expanded = false }) {
   return <span className={`nav-chevron ${expanded ? 'nav-chevron--expanded' : ''}`} aria-hidden="true"><ChevronRight /></span>;
 }
 
-function Sidebar({ route, onNavigate, fontScale, setFontScale, theme, onToggleTheme, collapsed }: {
-  route: Route; onNavigate: (r: Route) => void; fontScale: number; setFontScale: (n: number) => void; theme: 'light' | 'dark'; onToggleTheme: () => void; collapsed: boolean;
-}) {
-  const active = (targets: Route[]) => targets.includes(route);
-  const configurationRoutes: Route[] = ['users', 'profiles', 'permissions', 'metrics'];
+function Sidebar({ route, onNavigate, fontScale, setFontScale, theme, onToggleTheme, collapsed }) {
+  const active = (targets) => targets.includes(route);
+  const configurationRoutes = ['users', 'profiles', 'permissions', 'metrics'];
   const [settingsOpen, setSettingsOpen] = useState(configurationRoutes.includes(route));
   return <aside className={`sidebar ${collapsed ? 'sidebar--collapsed' : ''}`}>
     <div className="sidebar-brand"><Brand /></div>
@@ -96,9 +91,9 @@ function Sidebar({ route, onNavigate, fontScale, setFontScale, theme, onToggleTh
   </aside>;
 }
 
-function Shell({ route, onNavigate, children, fontScale, setFontScale, theme, onToggleTheme }: { route: Route; onNavigate: (r: Route) => void; children: React.ReactNode; fontScale: number; setFontScale: (n: number) => void; theme: 'light' | 'dark'; onToggleTheme: () => void }) {
+function Shell({ route, onNavigate, children, fontScale, setFontScale, theme, onToggleTheme }) {
   const [menuOpen, setMenuOpen] = useState(false);
-  return <div className={`prototype-window prototype-window--${theme}`} style={{ '--font-scale': fontScale } as React.CSSProperties}>
+  return <div className={`prototype-window prototype-window--${theme}`} style={{ '--font-scale': fontScale }}>
     <div className="app-body">
       <Sidebar route={route} onNavigate={(r) => { onNavigate(r); setMenuOpen(false); }} fontScale={fontScale} setFontScale={setFontScale} theme={theme} onToggleTheme={onToggleTheme} collapsed={!menuOpen} />
       <div className="workspace">
@@ -109,12 +104,11 @@ function Shell({ route, onNavigate, children, fontScale, setFontScale, theme, on
   </div>;
 }
 
-function breadcrumb(route: Route) {
-  type BreadcrumbItem = { label: string; route?: Route };
-  const home: BreadcrumbItem = { label: 'Início', route: 'dashboard' };
-  const review: BreadcrumbItem = { label: 'Detalhe e revisão', route: 'detail' };
-  const settings: BreadcrumbItem = { label: 'Configurações', route: 'users' };
-  const map: Record<Route, BreadcrumbItem[]> = {
+function breadcrumb(route) {
+  const home = { label: 'Início', route: 'dashboard' };
+  const review = { label: 'Detalhe e revisão', route: 'detail' };
+  const settings = { label: 'Configurações', route: 'users' };
+  const map = {
     dashboard: [home, { label: 'Dashboard' }],
     upload: [home, { label: 'Envio e processamento' }],
     detail: [home, { label: 'Detalhe e revisão' }],
@@ -128,17 +122,17 @@ function breadcrumb(route: Route) {
   return map[route];
 }
 
-function PageHeading({ title, description, action }: { title: string; description: string; action?: React.ReactNode }) {
+function PageHeading({ title, description, action }) {
   return <div className="page-heading"><div><h1>{title}</h1><p>{description}</p></div>{action}</div>;
 }
 
-function StatusPill({ kind, children }: { kind: 'processing' | 'queued' | 'done' | 'warning' | 'inactive'; children: React.ReactNode }) {
-  const icons: Record<typeof kind, LucideIcon> = { processing: LoaderCircle, queued: Clock3, done: CircleCheck, warning: CircleAlert, inactive: CircleX };
+function StatusPill({ kind, children }) {
+  const icons = { processing: LoaderCircle, queued: Clock3, done: CircleCheck, warning: CircleAlert, inactive: CircleX };
   const Icon = icons[kind];
   return <span className={`status status--${kind}`}><Icon className="status-icon" aria-hidden="true" />{children}</span>;
 }
 
-function Dashboard({ pages, onNavigate }: { pages: PageData[]; onNavigate: (r: Route) => void }) {
+function Dashboard({ pages, onNavigate }) {
   const reviewPages = pages.filter(p => p.needsReview).length;
   const regions = [225, 213, 203, 203, 183, 183, 169, 151, 128, 128, 114, 100, 88, 71, 53, 36];
   const names = ['Petrolina','Recife Norte','Caruaru','Recife Sul','Salgueiro','Garanhuns','Ouricuri','Serra Talhada','Araripina','Floresta','Afogados','Arcoverde','Palmares','Nazaré','Limoeiro','Goiana'];
@@ -152,14 +146,14 @@ function Dashboard({ pages, onNavigate }: { pages: PageData[]; onNavigate: (r: R
       <article className="metric-link" onClick={() => onNavigate('batch')}><span>Guias para revisão</span><strong>{reviewPages || '02'}</strong></article>
     </div>
     <section className="panel region-panel"><h2>Regiões Atendidas por GRE</h2><p>Volume total de guias de entrega processadas por Gerência Regional de Educação.</p><div className="vertical-chart">{regions.map((value, i) => <div className="bar-col" key={names[i]}><i style={{ height: `${value / 2.3}px` }} /><span>{names[i]}</span></div>)}</div></section>
-    <section className="panel products-panel"><h2>Top 10 Produtos Entregues</h2><p>Insumos alimentares com maior volume de distribuição registrado nas guias.</p><div>{products.map(([name, value]) => <div className="product-bar" key={name as string} style={{ width: `${value}%` }}>{name}</div>)}</div></section>
+    <section className="panel products-panel"><h2>Top 10 Produtos Entregues</h2><p>Insumos alimentares com maior volume de distribuição registrado nas guias.</p><div>{products.map(([name, value]) => <div className="product-bar" key={name} style={{ width: `${value}%` }}>{name}</div>)}</div></section>
   </main>;
 }
 
-function Upload({ rows, setRows }: { rows: UploadRow[]; setRows: React.Dispatch<React.SetStateAction<UploadRow[]>> }) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [openMenu, setOpenMenu] = useState<number | null>(null);
-  const openMenuCellRef = useRef<HTMLTableCellElement>(null);
+function Upload({ rows, setRows }) {
+  const inputRef = useRef(null);
+  const [openMenu, setOpenMenu] = useState(null);
+  const openMenuCellRef = useRef(null);
   useEffect(() => {
     if (openMenu === null) return;
     const closeOnOutsideClick = (event: PointerEvent) => {
@@ -168,17 +162,17 @@ function Upload({ rows, setRows }: { rows: UploadRow[]; setRows: React.Dispatch<
     document.addEventListener('pointerdown', closeOnOutsideClick);
     return () => document.removeEventListener('pointerdown', closeOnOutsideClick);
   }, [openMenu]);
-  const addFiles = (files: FileList | null) => {
+  const addFiles = (files) => {
     if (!files) return;
-    const next = Array.from(files).filter(f => f.type === 'application/pdf' || f.name.endsWith('.pdf')).map((file, i) => ({ id: Date.now() + i, name: file.name, pages: '—', progress: 0, status: 'queued' as const }));
+    const next = Array.from(files).filter(f => f.type === 'application/pdf' || f.name.endsWith('.pdf')).map((file, i) => ({ id: Date.now() + i, name: file.name, pages: '—', progress: 0, status: 'queued' }));
     setRows(prev => [...next, ...prev]);
   };
-  const drop = (event: DragEvent) => { event.preventDefault(); addFiles(event.dataTransfer.files); };
-  const updateRow = (id: number, changes: Partial<UploadRow>) => {
+  const drop = (event) => { event.preventDefault(); addFiles(event.dataTransfer.files); };
+  const updateRow = (id, changes) => {
     setRows(current => current.map(row => row.id === id ? { ...row, ...changes } : row));
     setOpenMenu(null);
   };
-  const removeRow = (id: number) => {
+  const removeRow = (id) => {
     setRows(current => current.filter(row => row.id !== id));
     setOpenMenu(null);
   };
@@ -206,9 +200,9 @@ const baseDetailRows: DetailRow[] = [
   ['1','Guia_Entrega_99877123.pdf','2.213','14/08/2026 - 9h10','62% (4.200 alertas)','done',''],
 ];
 
-function Detail({ pages, rows, setRows, onNavigate }: { pages: PageData[]; rows: DetailRow[]; setRows: React.Dispatch<React.SetStateAction<DetailRow[]>>; onNavigate: (r: Route) => void }) {
-  const [openMenu, setOpenMenu] = useState<string | null>(null);
-  const openMenuCellRef = useRef<HTMLTableCellElement>(null);
+function Detail({ pages, rows, setRows, onNavigate }) {
+  const [openMenu, setOpenMenu] = useState(null);
+  const openMenuCellRef = useRef(null);
   const alertCount = pages.reduce((sum, p) => sum + p.reviewCount, 0);
   useEffect(() => {
     if (openMenu === null) return;
@@ -228,13 +222,13 @@ function Detail({ pages, rows, setRows, onNavigate }: { pages: PageData[]; rows:
   </main>;
 }
 
-function FieldInput({ extraction, value, onChange, corrected }: { extraction?: Extraction; value: string; onChange: (v: string) => void; corrected: boolean }) {
+function FieldInput({ extraction, value, onChange, corrected }) {
   const invalid = extraction?.revisar_humano && !corrected;
   return <label className={`field ${invalid ? 'field--invalid' : 'field--valid'}`}><span>{FIELD_LABELS[extraction?.campo || ''] || extraction?.campo}</span><input value={value === 'VAZIO' ? '' : value} onChange={e => onChange(e.target.value)} placeholder={invalid ? 'Valor não identificado.' : ''} />{invalid ? <small>{extraction?.regra_negocio_mensagem || 'Valor não identificado.'}</small> : <small>Leitura concluída.</small>}</label>;
 }
 
-function PdfPageViewer({ page }: { page: number }) {
-  const hostRef = useRef<HTMLDivElement>(null);
+function PdfPageViewer({ page }) {
+  const hostRef = useRef(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const renderTaskRef = useRef<RenderTask | null>(null);
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
@@ -302,16 +296,16 @@ function PdfPageViewer({ page }: { page: number }) {
   </div>;
 }
 
-function DateCropViewer({ page }: { page: number }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const renderTaskRef = useRef<RenderTask | null>(null);
-  const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
+function DateCropViewer({ page }) {
+  const canvasRef = useRef(null);
+  const renderTaskRef = useRef(null);
+  const [pdf, setPdf] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
     let active = true;
-    let loadingTask: PDFDocumentLoadingTask | null = null;
+    let loadingTask = null;
     import('pdfjs-dist').then(({ GlobalWorkerOptions, getDocument }) => {
       if (!active) return null;
       GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
@@ -367,10 +361,8 @@ function DateCropViewer({ page }: { page: number }) {
   </div>;
 }
 
-function Guide({ pages, manifest, page, setPage, edits, setEdits, onNavigate }: {
-  pages: PageData[]; manifest: CropManifest; page: number; setPage: (p: number) => void; edits: Record<string,string>; setEdits: React.Dispatch<React.SetStateAction<Record<string,string>>>; onNavigate: (r: Route) => void;
-}) {
-  const [filter, setFilter] = useState<'all'|'issues'|'corrected'>('all');
+function Guide({ pages, manifest, page, setPage, edits, setEdits, onNavigate }) {
+  const [filter, setFilter] = useState('all');
   const pageData = pages[page - 1];
   const values = pageData?.values || {};
   const correctedCount = Object.keys(edits).filter(k => k.startsWith(`${page}:`)).length;
@@ -395,7 +387,7 @@ function Guide({ pages, manifest, page, setPage, edits, setEdits, onNavigate }: 
   </main>;
 }
 
-function Pagination({ page, total, setPage }: { page: number; total: number; setPage: (n: number) => void }) {
+function Pagination({ page, total, setPage }) {
   const [pageInput, setPageInput] = useState(String(page));
   useEffect(() => setPageInput(String(page)), [page]);
   const middlePage = Math.max(1, Math.floor(total / 2));
@@ -427,9 +419,7 @@ function Pagination({ page, total, setPage }: { page: number; total: number; set
   </div>;
 }
 
-function BatchReview({ queue, manifest, index, setIndex, edits, setEdits, onNavigate, setPage }: {
-  queue: Extraction[]; manifest: CropManifest; index: number; setIndex: React.Dispatch<React.SetStateAction<number>>; edits: Record<string,string>; setEdits: React.Dispatch<React.SetStateAction<Record<string,string>>>; onNavigate: (r: Route) => void; setPage: (p:number) => void;
-}) {
+function BatchReview({ queue, manifest, index, setIndex, edits, setEdits, onNavigate, setPage }) {
   const item = queue[index];
   const key = item ? `${item.pagina}:${item.campo}` : '';
   const isDateField = item ? ['dia', 'mes', 'ano'].includes(item.campo) : false;
@@ -444,7 +434,7 @@ function BatchReview({ queue, manifest, index, setIndex, edits, setEdits, onNavi
   }, [queue.length]);
   if (!item) return <main className="page"><PageHeading title="Revisão em lote" description="Nenhuma inconsistência encontrada." /></main>;
   const save = () => { setEdits(prev => ({...prev, [key]: draft })); setIndex(i => Math.min(i, Math.max(0, queue.length - 2))); };
-  const onKey = (e: KeyboardEvent<HTMLInputElement>) => { if (e.key === 'Enter') save(); };
+  const onKey = (e) => { if (e.key === 'Enter') save(); };
   const progress = ((index + 1) / queue.length) * 100;
   return <main className="page batch-page">
     <PageHeading title="Revisão em lote" description="Corrija apenas os campos com inconsistências detectadas pelo OCR para liberar o lote." />
@@ -455,7 +445,7 @@ function BatchReview({ queue, manifest, index, setIndex, edits, setEdits, onNavi
 }
 
 function Users() {
-  const [users, setUsers] = useState<UserRow[]>([
+  const [users, setUsers] = useState([
     {id:1,name:'Eduardo Francisco Thales Barbosa',email:'eduardo_barbosa@gmail.com',cpf:'631.192.771-34',role:'Convidado',active:true},
     {id:2,name:'Milena Tatiane Moreira',email:'milenatatianemoreira@gmail.com',cpf:'252.490.181-57',role:'Administrador',active:true},
     {id:3,name:'Jéssica Benedita Fogaça',email:'jessica_fogaca@gmail.com',cpf:'749.781.575-01',role:'Administrador',active:false},
@@ -485,7 +475,7 @@ function Permissions() {
     {id:'users',resource:'Gestão de usuários',admin:true,manager:false,reviewer:false,guest:false},
     {id:'settings',resource:'Perfis e permissões',admin:true,manager:false,reviewer:false,guest:false},
   ]);
-  const toggle = (id: string, key: 'admin'|'manager'|'reviewer'|'guest') => setRows(current => current.map(row => row.id === id ? {...row,[key]:!row[key]}:row));
+  const toggle = (id, key) => setRows(current => current.map(row => row.id === id ? {...row,[key]:!row[key]}:row));
   return <main className="page config-page"><PageHeading title="Permissões" description="Defina quais áreas do sistema cada perfil pode acessar." />
     <div className="table-panel permissions-table"><table><thead><tr><th>Recurso</th><th>Administrador</th><th>Gestor ARPE</th><th>Revisor</th><th>Convidado</th></tr></thead><tbody>{rows.map(row => <tr key={row.id}><td><strong>{row.resource}</strong></td>{(['admin','manager','reviewer','guest'] as const).map(key => <td key={key}><label className="permission-toggle"><input type="checkbox" checked={row[key]} onChange={() => toggle(row.id,key)} /><span>{row[key] ? 'Permitido' : 'Bloqueado'}</span></label></td>)}</tr>)}</tbody></table></div>
   </main>;
@@ -504,9 +494,9 @@ function Loading() { return <div className="loading"><Brand large /><div classNa
 
 export default function App() {
   const [logged, setLogged] = useState(false);
-  const [route, setRoute] = useState<Route>('dashboard');
-  const [extractions, setExtractions] = useState<Extraction[]>([]);
-  const [manifest, setManifest] = useState<CropManifest>({});
+  const [route, setRoute] = useState('dashboard');
+  const [extractions, setExtractions] = useState([]);
+  const [manifest, setManifest] = useState({});
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [batchIndex, setBatchIndex] = useState(0);
