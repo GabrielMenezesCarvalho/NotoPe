@@ -1,5 +1,5 @@
 import { ChangeEvent, DragEvent, Fragment, KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, CircleAlert, CircleCheck, CircleX, Clock3, Download, ExternalLink, FilePenLine, FileSearch, FileUp, Info, LayoutDashboard, LoaderCircle, Menu, Moon, MoreVertical, Pause, Play, RotateCcw, Settings, Sun, Trash2, Upload as UploadIcon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, CircleAlert, CircleCheck, CircleX, Clock3, Download, ExternalLink, FilePenLine, FileSearch, FileUp, Info, LayoutDashboard, ListChecks, LoaderCircle, Menu, Moon, MoreVertical, Pause, Play, RotateCcw, Settings, Sun, Trash2, Upload as UploadIcon } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { PDFDocumentLoadingTask, PDFDocumentProxy, RenderTask } from 'pdfjs-dist';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
@@ -16,6 +16,7 @@ const MAX_FONT_SCALE = 4;
 const FONT_SCALE_STEP = .1;
 
 type UploadRow = { id: number; name: string; pages: string; progress: number; status: 'processing' | 'queued' | 'done' };
+type DetailRow = [id: string, name: string, pages: string, date: string, inconsistencies: string, status: string, progress: string];
 type UserRow = { id: number; name: string; email: string; cpf: string; role: string; active: boolean };
 
 function Brand({ large = false }: { large?: boolean }) {
@@ -158,6 +159,15 @@ function Dashboard({ pages, onNavigate }: { pages: PageData[]; onNavigate: (r: R
 function Upload({ rows, setRows }: { rows: UploadRow[]; setRows: React.Dispatch<React.SetStateAction<UploadRow[]>> }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [openMenu, setOpenMenu] = useState<number | null>(null);
+  const openMenuCellRef = useRef<HTMLTableCellElement>(null);
+  useEffect(() => {
+    if (openMenu === null) return;
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (!openMenuCellRef.current?.contains(event.target as Node)) setOpenMenu(null);
+    };
+    document.addEventListener('pointerdown', closeOnOutsideClick);
+    return () => document.removeEventListener('pointerdown', closeOnOutsideClick);
+  }, [openMenu]);
   const addFiles = (files: FileList | null) => {
     if (!files) return;
     const next = Array.from(files).filter(f => f.type === 'application/pdf' || f.name.endsWith('.pdf')).map((file, i) => ({ id: Date.now() + i, name: file.name, pages: '—', progress: 0, status: 'queued' as const }));
@@ -179,11 +189,11 @@ function Upload({ rows, setRows }: { rows: UploadRow[]; setRows: React.Dispatch<
       <input ref={inputRef} hidden type="file" accept="application/pdf" multiple onChange={e => addFiles(e.target.files)} />
     </button>
     <div className="section-heading"><h2>Arquivos selecionados</h2><span>{rows.filter(row => row.status === 'processing').length} arquivos em processamento</span></div>
-    <div className="table-panel"><table><thead><tr><th>ID Registro</th><th>Arquivo</th><th>Núm. de páginas</th><th>Status do processo</th><th>Ação</th></tr></thead><tbody>{rows.map(row => <tr key={row.id}><td>{row.id}</td><td>{row.name}</td><td>{row.pages}</td><td>{row.status === 'processing' ? <StatusPill kind="processing">Processando ({row.progress}%)</StatusPill> : row.status === 'done' ? <StatusPill kind="done">Concluído</StatusPill> : <StatusPill kind="queued">Na Fila</StatusPill>}</td><td className="menu-cell"><button className="row-menu" aria-label={`Opções de ${row.name}`} aria-expanded={openMenu === row.id} onClick={() => setOpenMenu(current => current === row.id ? null : row.id)}><MoreVertical aria-hidden="true" /></button>{openMenu === row.id && <div className="context-menu upload-actions">{row.status === 'queued' && <button onClick={() => updateRow(row.id, { status: 'processing', progress: Math.max(1, row.progress) })}><Play aria-hidden="true" />Iniciar processamento</button>}{row.status === 'processing' && <button onClick={() => updateRow(row.id, { status: 'queued' })}><Pause aria-hidden="true" />Pausar e enviar à fila</button>}<button onClick={() => updateRow(row.id, { status: 'processing', progress: 0 })}><RotateCcw aria-hidden="true" />Reprocessar</button>{row.status !== 'done' && <button onClick={() => updateRow(row.id, { status: 'done', progress: 100 })}><CircleCheck aria-hidden="true" />Marcar como concluído</button>}<button className="danger" onClick={() => removeRow(row.id)}><Trash2 aria-hidden="true" />Remover da lista</button></div>}</td></tr>)}</tbody></table></div>
+    <div className="table-panel"><table><thead><tr><th>ID Registro</th><th>Arquivo</th><th>Núm. de páginas</th><th>Status do processo</th><th>Ação</th></tr></thead><tbody>{rows.map(row => <tr key={row.id}><td>{row.id}</td><td>{row.name}</td><td>{row.pages}</td><td>{row.status === 'processing' ? <StatusPill kind="processing">Processando ({row.progress}%)</StatusPill> : row.status === 'done' ? <StatusPill kind="done">Concluído</StatusPill> : <StatusPill kind="queued">Na Fila</StatusPill>}</td><td className="menu-cell" ref={openMenu === row.id ? openMenuCellRef : undefined}><button className="row-menu" aria-label={`Opções de ${row.name}`} aria-expanded={openMenu === row.id} onClick={() => setOpenMenu(current => current === row.id ? null : row.id)}><MoreVertical aria-hidden="true" /></button>{openMenu === row.id && <div className="context-menu upload-actions">{row.status === 'queued' && <button onClick={() => updateRow(row.id, { status: 'processing', progress: Math.max(1, row.progress) })}><Play aria-hidden="true" />Iniciar processamento</button>}{row.status === 'processing' && <button onClick={() => updateRow(row.id, { status: 'queued' })}><Pause aria-hidden="true" />Pausar e enviar à fila</button>}<button onClick={() => updateRow(row.id, { status: 'processing', progress: 0 })}><RotateCcw aria-hidden="true" />Reprocessar</button>{row.status !== 'done' && <button onClick={() => updateRow(row.id, { status: 'done', progress: 100 })}><CircleCheck aria-hidden="true" />Marcar como concluído</button>}<button className="danger" onClick={() => removeRow(row.id)}><Trash2 aria-hidden="true" />Remover da lista</button></div>}</td></tr>)}</tbody></table></div>
   </main>;
 }
 
-const baseDetailRows = [
+const baseDetailRows: DetailRow[] = [
   ['10','Guia_Entrega_708351.pdf','300','18/08/2026 - 10h20','...','processing','85'],
   ['9','Lote_Escolas_GRE_Agreste_03_2026.pdf','2.500','18/08/2026 - 10h20','...','processing','12'],
   ['8','CEASA_PE_Manifesto_883.pdf','9.150','18/08/2026 - 10h20','...','processing','5'],
@@ -196,12 +206,25 @@ const baseDetailRows = [
   ['1','Guia_Entrega_99877123.pdf','2.213','14/08/2026 - 9h10','62% (4.200 alertas)','done',''],
 ];
 
-function Detail({ pages, onNavigate }: { pages: PageData[]; onNavigate: (r: Route) => void }) {
+function Detail({ pages, rows, setRows, onNavigate }: { pages: PageData[]; rows: DetailRow[]; setRows: React.Dispatch<React.SetStateAction<DetailRow[]>>; onNavigate: (r: Route) => void }) {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const openMenuCellRef = useRef<HTMLTableCellElement>(null);
   const alertCount = pages.reduce((sum, p) => sum + p.reviewCount, 0);
+  useEffect(() => {
+    if (openMenu === null) return;
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (!openMenuCellRef.current?.contains(event.target as Node)) setOpenMenu(null);
+    };
+    document.addEventListener('pointerdown', closeOnOutsideClick);
+    return () => document.removeEventListener('pointerdown', closeOnOutsideClick);
+  }, [openMenu]);
+  const removeRow = (id: string) => {
+    setRows(current => current.filter(row => row[0] !== id));
+    setOpenMenu(null);
+  };
   return <main className="page detail-page">
     <PageHeading title="Detalhe e revisão" description="Consulte o histórico de processamento, monitore o progresso do OCR e acesse a revisão detalhada dos documentos." action={<button className="primary" onClick={() => onNavigate('batch')}>Revisão em lote</button>} />
-    <div className="table-panel detail-table"><table><thead><tr><th>Código</th><th>Arquivo</th><th>Núm. de páginas</th><th>Data e hora</th><th>Inconsistências</th><th>Status do processo</th><th>Ação</th></tr></thead><tbody>{baseDetailRows.map((row, index) => <tr key={row[0]}><td>{row[0]}</td><td className="truncate">{index === 0 ? 'Form_Novo_300_pags.pdf' : row[1]}</td><td>{row[2]}</td><td>{row[3]}</td><td className={index === 0 ? 'danger-text' : ''}>{index === 0 ? `${Math.round(alertCount / 6)} páginas (${alertCount} alertas)` : row[4]}</td><td>{row[5] === 'processing' ? <StatusPill kind="processing">Processando ({row[6]}%)</StatusPill> : row[5] === 'queued' ? <StatusPill kind="queued">Na Fila</StatusPill> : <StatusPill kind="done">Concluído</StatusPill>}</td><td className="menu-cell"><button className="row-menu" aria-label={`Opções de ${row[1]}`} onClick={() => setOpenMenu(openMenu === row[0] ? null : row[0])}><MoreVertical aria-hidden="true" /></button>{openMenu === row[0] && <div className="context-menu"><button onClick={() => onNavigate('guide')}><FilePenLine aria-hidden="true" />Revisar</button><button><RotateCcw aria-hidden="true" />Reprocessar</button><a href={PDF_URL} download><Download aria-hidden="true" />Baixar PDF original</a><button className="danger"><Trash2 aria-hidden="true" />Excluir</button></div>}</td></tr>)}</tbody></table></div>
+    <div className="table-panel detail-table"><table><thead><tr><th>Código</th><th>Arquivo</th><th>Núm. de páginas</th><th>Data e hora</th><th>Inconsistências</th><th>Status do processo</th><th>Ação</th></tr></thead><tbody>{rows.map((row, index) => <tr key={row[0]}><td>{row[0]}</td><td className="truncate">{row[0] === '10' ? 'Form_Novo_300_pags.pdf' : row[1]}</td><td>{row[2]}</td><td>{row[3]}</td><td className={row[0] === '10' ? 'danger-text' : ''}>{row[0] === '10' ? `${Math.round(alertCount / 6)} páginas (${alertCount} alertas)` : row[4]}</td><td>{row[5] === 'processing' ? <StatusPill kind="processing">Processando ({row[6]}%)</StatusPill> : row[5] === 'queued' ? <StatusPill kind="queued">Na Fila</StatusPill> : <StatusPill kind="done">Concluído</StatusPill>}</td><td className="menu-cell" ref={openMenu === row[0] ? openMenuCellRef : undefined}><button className="row-menu" aria-label={`Opções de ${row[1]}`} aria-expanded={openMenu === row[0]} onClick={() => setOpenMenu(openMenu === row[0] ? null : row[0])}><MoreVertical aria-hidden="true" /></button>{openMenu === row[0] && <div className="context-menu"><button onClick={() => onNavigate('guide')}><FilePenLine aria-hidden="true" />Revisar</button><button><RotateCcw aria-hidden="true" />Reprocessar</button><a href={PDF_URL} download><Download aria-hidden="true" />Baixar PDF original</a><button className="danger" onClick={() => removeRow(row[0])}><Trash2 aria-hidden="true" />Excluir</button></div>}</td></tr>)}</tbody></table></div>
   </main>;
 }
 
@@ -279,6 +302,71 @@ function PdfPageViewer({ page }: { page: number }) {
   </div>;
 }
 
+function DateCropViewer({ page }: { page: number }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const renderTaskRef = useRef<RenderTask | null>(null);
+  const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    let loadingTask: PDFDocumentLoadingTask | null = null;
+    import('pdfjs-dist').then(({ GlobalWorkerOptions, getDocument }) => {
+      if (!active) return null;
+      GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+      loadingTask = getDocument({ url: PDF_URL });
+      return loadingTask.promise;
+    }).then(document => {
+      if (active) setPdf(document);
+    }).catch(() => {
+      if (active) { setError('Recortes da data indisponíveis.'); setLoading(false); }
+    });
+    return () => { active = false; renderTaskRef.current?.cancel(); if (loadingTask) void loadingTask.destroy(); };
+  }, []);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!pdf || !canvas) return;
+    let active = true;
+    renderTaskRef.current?.cancel();
+    setLoading(true);
+    setError('');
+    pdf.getPage(page).then(pdfPage => {
+      if (!active) return;
+      const baseViewport = pdfPage.getViewport({ scale: 1 });
+      const crop = {
+        x: baseViewport.width * .55,
+        y: baseViewport.height * .584,
+        width: baseViewport.width * .33,
+        height: baseViewport.height * .075,
+      };
+      const scale = 900 / crop.width;
+      const viewport = pdfPage.getViewport({ scale });
+      canvas.width = Math.ceil(crop.width * scale);
+      canvas.height = Math.ceil(crop.height * scale);
+      const renderTask = pdfPage.render({
+        canvas,
+        viewport,
+        transform: [1, 0, 0, 1, -crop.x * scale, -crop.y * scale],
+      });
+      renderTaskRef.current = renderTask;
+      return renderTask.promise;
+    }).then(() => {
+      if (active) setLoading(false);
+    }).catch(reason => {
+      if (active && reason?.name !== 'RenderingCancelledException') { setError('Recortes da data indisponíveis.'); setLoading(false); }
+    });
+    return () => { active = false; renderTaskRef.current?.cancel(); };
+  }, [pdf, page]);
+
+  return <div className="date-crop-viewer" aria-busy={loading}>
+    <canvas ref={canvasRef} aria-label={`Recortes de dia, mês e ano da página ${page}`} />
+    {loading && <span>Carregando recortes da data…</span>}
+    {error && <span className="date-crop-error">{error}</span>}
+  </div>;
+}
+
 function Guide({ pages, manifest, page, setPage, edits, setEdits, onNavigate }: {
   pages: PageData[]; manifest: CropManifest; page: number; setPage: (p: number) => void; edits: Record<string,string>; setEdits: React.Dispatch<React.SetStateAction<Record<string,string>>>; onNavigate: (r: Route) => void;
 }) {
@@ -290,7 +378,7 @@ function Guide({ pages, manifest, page, setPage, edits, setEdits, onNavigate }: 
   const update = (field: string, value: string) => setEdits(prev => ({ ...prev, [`${page}:${field}`]: value }));
   const titlePage = page;
   return <main className="page guide-page">
-    <PageHeading title={`Guia de Entrega Nº ${titlePage}`} description="Revisão de leitura OCR e validação dos dados de distribuição." action={<div className="heading-actions"><StatusPill kind="done">Processado: 100%</StatusPill><StatusPill kind="warning">Revisão necessária</StatusPill><button className="icon-button" aria-label="Abrir revisão em lote" onClick={() => onNavigate('batch')}><Menu aria-hidden="true" /></button></div>} />
+    <PageHeading title={`Guia de Entrega Nº ${titlePage}`} description="Revisão de leitura OCR e validação dos dados de distribuição." action={<div className="heading-actions"><StatusPill kind="done">Processado: 100%</StatusPill><StatusPill kind="warning">Revisão necessária</StatusPill><button className="primary batch-review-button" onClick={() => onNavigate('batch')}><ListChecks aria-hidden="true" />Revisão em lote</button><button className="icon-button guide-mobile-menu" aria-label="Abrir revisão em lote" onClick={() => onNavigate('batch')}><Menu aria-hidden="true" /></button></div>} />
     <div className="guide-toolbar"><div><b>Filtros:</b><button className={filter === 'all' ? 'selected' : ''} onClick={() => setFilter('all')}>Ver todos (300)</button><button className={filter === 'issues' ? 'selected' : ''} onClick={() => setFilter('issues')}>Página com inconsistência ({pages.filter(p => p.needsReview).length})</button><button className={filter === 'corrected' ? 'selected' : ''} onClick={() => setFilter('corrected')}>Páginas corrigidas ({correctedCount})</button></div><Pagination page={page} total={pages.length || 300} setPage={setPage} /></div>
     <div className="guide-split">
       <section className="pdf-card"><PdfPageViewer page={page} /><a className="open-pdf" href={`${PDF_URL}#page=${page}`} target="_blank" rel="noreferrer">Abrir PDF completo <ExternalLink aria-hidden="true" /></a></section>
@@ -344,6 +432,7 @@ function BatchReview({ queue, manifest, index, setIndex, edits, setEdits, onNavi
 }) {
   const item = queue[index];
   const key = item ? `${item.pagina}:${item.campo}` : '';
+  const isDateField = item ? ['dia', 'mes', 'ano'].includes(item.campo) : false;
   const [draft, setDraft] = useState('');
   useEffect(() => setDraft(item ? edits[key] ?? (item.extraido_ia === 'VAZIO' ? '' : String(item.extraido_ia ?? '')) : ''), [key]);
   useEffect(() => {
@@ -360,7 +449,7 @@ function BatchReview({ queue, manifest, index, setIndex, edits, setEdits, onNavi
   return <main className="page batch-page">
     <PageHeading title="Revisão em lote" description="Corrija apenas os campos com inconsistências detectadas pelo OCR para liberar o lote." />
     <div className="batch-progress"><div><b>Fila de Revisão: {index + 1} de {queue.length} pendentes</b><span>{progress.toFixed(2).replace('.', ',')}%</span></div><i><b style={{ width: `${Math.max(1, progress)}%` }} /></i></div>
-    <div className="batch-stage"><button className="batch-arrow" aria-label="Inconsistência anterior" onClick={() => setIndex(i => Math.max(0,i-1))}><ChevronLeft aria-hidden="true" /></button><figure><div className="crop-frame">{manifest[key] ? <img src={manifest[key]} alt={`Recorte do campo ${FIELD_LABELS[item.campo]}`} /> : <iframe title="Página da guia" src={`${PDF_URL}#page=${item.pagina}&zoom=page-width&toolbar=0`} />}</div><figcaption>O trecho destacado apresenta incoerência.</figcaption></figure><section className="batch-card"><header><h2>Guia de Entrega Nº {item.pagina}</h2><button onClick={() => { setPage(item.pagina); onNavigate('guide'); }}>Abrir Guia <ExternalLink aria-hidden="true" /></button></header><label><span>{FIELD_LABELS[item.campo] || item.campo}</span><input autoFocus value={draft} onChange={e => setDraft(e.target.value)} onKeyDown={onKey} placeholder="Valor não identificado." /><small>{item.regra_negocio_mensagem || 'Valor não identificado.'}</small></label>{item.campo.includes('total_') && <label className="no-value"><input type="checkbox" onChange={e => e.target.checked && setDraft('NÃO CONSTA')} /> Não consta.</label>}<footer><button onClick={() => setIndex(i => Math.min(queue.length - 1, i + 1))}>Pular</button><button className="success" onClick={save}>Salvar</button></footer></section><button className="batch-arrow" aria-label="Próxima inconsistência" onClick={() => setIndex(i => Math.min(queue.length - 1,i+1))}><ChevronRight aria-hidden="true" /></button></div>
+    <div className="batch-stage"><button className="batch-arrow" aria-label="Inconsistência anterior" onClick={() => setIndex(i => Math.max(0,i-1))}><ChevronLeft aria-hidden="true" /></button><figure><div className={`crop-frame ${isDateField ? 'crop-frame--date' : ''}`}>{isDateField ? <DateCropViewer page={item.pagina} /> : manifest[key] ? <img src={manifest[key]} alt={`Recorte do campo ${FIELD_LABELS[item.campo]}`} /> : <iframe title="Página da guia" src={`${PDF_URL}#page=${item.pagina}&zoom=page-width&toolbar=0`} />}</div><figcaption>{isDateField ? 'Recortes de dia, mês e ano exibidos em conjunto.' : 'O trecho destacado apresenta incoerência.'}</figcaption></figure><section className="batch-card"><header><h2>Guia de Entrega Nº {item.pagina}</h2><button onClick={() => { setPage(item.pagina); onNavigate('guide'); }}>Abrir Guia <ExternalLink aria-hidden="true" /></button></header><label><span>{FIELD_LABELS[item.campo] || item.campo}</span><input autoFocus value={draft} onChange={e => setDraft(e.target.value)} onKeyDown={onKey} placeholder="Valor não identificado." /><small>{item.regra_negocio_mensagem || 'Valor não identificado.'}</small></label>{item.campo.includes('total_') && <label className="no-value"><input type="checkbox" onChange={e => e.target.checked && setDraft('NÃO CONSTA')} /> Não consta.</label>}<footer><button onClick={() => setIndex(i => Math.min(queue.length - 1, i + 1))}>Pular</button><button className="success" onClick={save}>Salvar</button></footer></section><button className="batch-arrow" aria-label="Próxima inconsistência" onClick={() => setIndex(i => Math.min(queue.length - 1,i+1))}><ChevronRight aria-hidden="true" /></button></div>
     <div className="batch-hint">Pressione ENTER para Salvar | Use ← → para navegar</div>
   </main>;
 }
@@ -435,6 +524,7 @@ export default function App() {
     {id:6,name:'Lote_Escolas_GRE_Agreste_02_2026.pdf',pages:'540',progress:0,status:'queued'},
     {id:5,name:'Lote_Escolas_GRE_Agreste_01_2026.pdf',pages:'890',progress:0,status:'queued'},
   ]);
+  const [detailRows, setDetailRows] = useState<DetailRow[]>(baseDetailRows);
 
   useEffect(() => { Promise.all([fetch('/data/extractions.json').then(r => r.json()), fetch('/data/crop-manifest.json').then(r => r.json())]).then(([data,crops]) => { setExtractions(data); setManifest(crops); }).finally(() => setLoading(false)); }, []);
   useEffect(() => localStorage.setItem('notope-edits', JSON.stringify(edits)), [edits]);
@@ -452,7 +542,7 @@ export default function App() {
   return <Shell route={route} onNavigate={setRoute} fontScale={fontScale} setFontScale={setFontScale} theme={theme} onToggleTheme={() => setTheme(current => current === 'light' ? 'dark' : 'light')}>
     {route === 'dashboard' && <Dashboard pages={pages} onNavigate={setRoute} />}
     {route === 'upload' && <Upload rows={rows} setRows={setRows} />}
-    {route === 'detail' && <Detail pages={pages} onNavigate={setRoute} />}
+    {route === 'detail' && <Detail pages={pages} rows={detailRows} setRows={setDetailRows} onNavigate={setRoute} />}
     {route === 'guide' && <Guide pages={pages} manifest={manifest} page={page} setPage={setPage} edits={edits} setEdits={setEdits} onNavigate={setRoute} />}
     {route === 'batch' && <BatchReview queue={queue} manifest={manifest} index={Math.min(batchIndex, Math.max(0, queue.length - 1))} setIndex={setBatchIndex} edits={edits} setEdits={setEdits} onNavigate={setRoute} setPage={setPage} />}
     {route === 'users' && <Users />}
